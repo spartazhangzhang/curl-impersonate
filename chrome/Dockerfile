@@ -151,6 +151,6 @@ RUN chmod 777 /build/curl-7.81.0/curl-impersonate-chrome-config
 WORKDIR /build/pycurl
 RUN python3 setup.py install --curl-config=/build/curl-7.81.0/curl-impersonate-chrome-config --openssl-dir=/build/boringssl/build
 RUN pip install requests six --no-cache-dir
-RUN unset http_proxy
-RUN unset https_proxy
-RUN unset ALL_PROXY
+ENV  http_proxy=
+ENV  https_proxy=
+ENV  ALL_PROXY=
