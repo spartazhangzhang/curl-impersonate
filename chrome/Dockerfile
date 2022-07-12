@@ -8,7 +8,9 @@
 # Python is needed for building libnss.
 # Use it as a common base.
 FROM python:3.10.1-slim-buster
-
+ENV  http_proxy=http://192.168.9.7:10811
+ENV  https_proxy=http://192.168.9.7:10811
+ENV  ALL_PROXY=socks5://192.168.9.7:10810
 WORKDIR /build
 
 # Common dependencies
@@ -24,7 +26,7 @@ RUN apt-get install -y g++ golang-go unzip
 
 # Download and compile libbrotli
 ARG BROTLI_VERSION=1.0.9
-RUN curl -L https://github.com/google/brotli/archive/refs/tags/v${BROTLI_VERSION}.tar.gz -o brotli-${BROTLI_VERSION}.tar.gz && \
+RUN curl  -L https://github.com/google/brotli/archive/refs/tags/v${BROTLI_VERSION}.tar.gz -o brotli-${BROTLI_VERSION}.tar.gz && \
     tar xf brotli-${BROTLI_VERSION}.tar.gz
 RUN cd brotli-${BROTLI_VERSION} && \
     mkdir build && cd build && \
@@ -34,7 +36,7 @@ RUN cd brotli-${BROTLI_VERSION} && \
 # BoringSSL doesn't have versions. Choose a commit that is used in a stable
 # Chromium version.
 ARG BORING_SSL_COMMIT=3a667d10e94186fd503966f5638e134fe9fb4080
-RUN curl -L https://github.com/google/boringssl/archive/${BORING_SSL_COMMIT}.zip -o boringssl.zip && \
+RUN curl  -L https://github.com/google/boringssl/archive/${BORING_SSL_COMMIT}.zip -o boringssl.zip && \
     unzip boringssl && \
     mv boringssl-${BORING_SSL_COMMIT} boringssl
 
@@ -58,7 +60,7 @@ ARG NGHTTP2_VERSION=nghttp2-1.46.0
 ARG NGHTTP2_URL=https://github.com/nghttp2/nghttp2/releases/download/v1.46.0/nghttp2-1.46.0.tar.bz2
 
 # Download nghttp2 for HTTP/2.0 support.
-RUN curl -o ${NGHTTP2_VERSION}.tar.bz2 -L ${NGHTTP2_URL}
+RUN curl  -o ${NGHTTP2_VERSION}.tar.bz2 -L ${NGHTTP2_URL}
 RUN tar xf ${NGHTTP2_VERSION}.tar.bz2
 
 # Compile nghttp2
@@ -68,7 +70,7 @@ RUN cd ${NGHTTP2_VERSION} && \
 
 # Download curl.
 ARG CURL_VERSION=curl-7.81.0
-RUN curl -o ${CURL_VERSION}.tar.xz https://curl.se/download/${CURL_VERSION}.tar.xz
+RUN curl  -o ${CURL_VERSION}.tar.xz https://curl.se/download/${CURL_VERSION}.tar.xz
 RUN tar xf ${CURL_VERSION}.tar.xz
 
 # Patch curl and re-generate the configure script
@@ -134,3 +136,21 @@ RUN ! (ldd ./out/curl-impersonate | grep -q -e nghttp2 -e brotli -e ssl -e crypt
 # Wrapper scripts
 COPY curl_chrome* curl_edge* curl_safari* out/
 RUN chmod +x out/curl_*
+
+
+# download pycurl
+RUN git clone https://github.com/ycq0125/pycurl
+
+# config
+RUN cp /build/out/*so* /usr/local/lib
+RUN ldconfig
+
+# fix file
+RUN sed -i 's/\/curl_test\/curl-impersonate//g' /build/pycurl/src/pycurl.h
+RUN chmod 777 /build/curl-7.81.0/curl-impersonate-chrome-config
+WORKDIR /build/pycurl
+RUN python3 setup.py install --curl-config=/build/curl-7.81.0/curl-impersonate-chrome-config --openssl-dir=/build/boringssl/build
+RUN pip install requests six --no-cache-dir
+RUN unset http_proxy
+RUN unset https_proxy
+RUN unset ALL_PROXY
